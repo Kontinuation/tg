@@ -120,6 +120,7 @@ MultiGeometries and GeometryCollections are automatically indexed when they cont
     *   **YSTRIPES**: Significantly higher memory usage.
         *   Adds `struct ystripes` and stripe data.
         *   Overhead is roughly `~6 * N` bytes for large N.
+        *   **Small Polygons**: No overhead for Triangle/Square (N < 32).
 *   **With Holes**:
     *   **Structure**: `sizeof(struct tg_poly)` (32 bytes).
     *   **Exterior**: Full size of exterior ring.
@@ -135,9 +136,10 @@ MultiGeometries and GeometryCollections are automatically indexed when they cont
     *   **Pointers**: `ngeoms * 8` bytes.
 *   **Children**: Sum of memory of all child geometries.
 *   **Index**:
-    *   `ixgeoms` array: `ngeoms * 4` bytes (if indexed).
-    *   Index structure: Variable size.
-*   **Formula**: `112 + 8 * ngeoms + Sum(Mem(Children)) + (Indexed ? (4 * ngeoms + IndexSize) : 0)`.
+    *   **Threshold**: Automatically indexed when `ngeoms >= 64`.
+    *   **Overhead**: `4 * ngeoms` (for `ixgeoms` array) + `IndexSize` (starts small, ~64 bytes).
+    *   **Total Overhead**: ~320 bytes at N=64.
+*   **Formula**: `112 + 8 * ngeoms + Sum(Mem(Children)) + (ngeoms >= 64 ? (4 * ngeoms + IndexSize) : 0)`.
 
 ## Conclusion
 
@@ -147,9 +149,12 @@ MultiGeometries and GeometryCollections are automatically indexed when they cont
     *   **NONE**: Most memory efficient, linear growth `16 * N`.
     *   **NATURAL**: Adds ~7-10% overhead for large geometries. Efficient spatial indexing.
     *   **YSTRIPES**: Adds significant overhead (~35-40% more than NATURAL for large N, and up to 3x for smaller N). Should be used when point-in-polygon performance is critical.
+*   **MultiGeometries**:
+    *   Efficient storage for children.
+    *   Automatic indexing kicks in at 64 items, adding a small overhead (~5 bytes/item at N=64).
 *   **Points**: Very compact (24 bytes).
 *   **Polygons with Holes**: Have a higher reported memory footprint due to separate allocations for each ring and a potential calculation bug in `tg_geom_memsize`.
-*   **Collections**: Add about 112 bytes fixed overhead plus 8 bytes per item, plus indexing costs.
+*   **Collections**: Add about 112 bytes fixed overhead plus 8 bytes per item, plus indexing costs (if N >= 64).
 
 For estimation purposes based on WKB:
 *   **Points**: `1.2 * WKB`
